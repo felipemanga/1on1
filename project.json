@@ -1296,7 +1296,14 @@
 		"src/#ship.h#": {},
 		"zikiQQet": {},
 		"zin20oxy": {},
-		"ziFC3hIg": {}
+		"ziFC3hIg": {},
+		"img-src/Gauge.png": {
+			"PNGFlags": [
+				"automatic=1",
+				"palette=${projectPath}/img-src/grayscale.h"
+			]
+		},
+		"img-src/Gauge.h": {}
 	},
 	"ideVersion": 10000,
 	"BUILDFlags": {
