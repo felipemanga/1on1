@@ -108,7 +108,7 @@ void stats() {
     PROFILER;
     using namespace Graphics;
     setCursor(0, 10);
-    print(getFPS(), " ", profiler::getBottleneck());
+    // print(getFPS(), " ", profiler::getBottleneck());
 }
 
 void drawShips() {

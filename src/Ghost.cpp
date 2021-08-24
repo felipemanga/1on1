@@ -221,6 +221,7 @@ bool saveGhost(u32 trackId, void* data, u32 size) {
     ooo >> w >> h;
 
     for (int y = 0; y < 176; ++y) {
+        Schedule::runUpdateHooks(false, getTimeMicro());
         u8 pixels[220*3];
         u16 line[220 + 16];
         for (u32 x = 0; x < 220; ++x)
@@ -266,7 +267,7 @@ bool saveGhost(u32 trackId, void* data, u32 size) {
             pixels[x * 3 + 1] = G;
             pixels[x * 3 + 2] = B;
         }
-
+        // flushLine16(line + 8);
         png.write(pixels, 220);
     }
     // File ghost(fileName, true);

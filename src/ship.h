@@ -10,7 +10,7 @@
 #include "Settings.hpp"
 
 constexpr u32 shipCount = 2;
-constexpr u32 currentVersion = 2;
+constexpr u32 currentVersion = 3;
 
 struct Recording {
     u32 version;
@@ -41,6 +41,7 @@ public:
     static inline u32 nextUID = 0;
     const u32 uid;
     Recording* recording;
+    const Stats* stats;
     f32 thrust;
     Point3D speed;
     Point3D position;
@@ -49,7 +50,6 @@ public:
     f32 rotationSpeed;
     u32 HP;
     s32 boostMeter;
-    u32 boostMax;
     bool isBoosting;
     u32 nextCheckpoint;
     static inline u32 lapStart;
@@ -64,7 +64,6 @@ public:
     static inline Point2D checkPoints[4];
 
     void init(u32 trackId) {
-        boostMax = 30;
         bestLap = ~u32{};
         startFrame = frame;
         lapStart = getTimeMicro() / 1000;
@@ -78,7 +77,7 @@ public:
         if (isPlayer()) {
             recording->sampleCount = 0;
             strcpy(recording->name, Settings::name);
-            recording->pod = Settings::pod % shipMeshCount;
+            recording->pod = Settings::pod % shipStatsCount;
             recording->color = Settings::color;
             recording->version = currentVersion;
         } else if (!loadGhost(trackId, recording, maxBankSize) || recording->version != currentVersion) {
@@ -217,12 +216,13 @@ public:
 #if defined(TARGET_LPC11U6X)
         Graphics::print(((volatile uint32_t *) 0xE000ED00)[0] != 1947 ? "HW" : "EMU");
 #endif
-        Graphics::print("\n Pod: ", shipNames[recording->pod]);
+        Graphics::print("\n Pod: ", stats->name);
         Graphics::setCursor(5, screenHeight - 30);
         Graphics::print(recording->name);
         Graphics::print("\n Time:  ", s, " s ", ms, " ms ");
         saveGhost(trackId, recordingBanks[1], maxBankSize);
         Graphics::clearText();
+        delay(1000);
     }
 
     void localPlayer() {
@@ -245,7 +245,9 @@ public:
         u32 deltaLeft = 500;
         u32 deltaUp = 500;
 
-        f32 targetThrust = f32(200.0f);
+        f32 targetThrust = stats->thrust;
+
+        Graphics::print(nextCheckpoint);
 
         if (isBoosting) {
             boostMeter -= frame & 1;
@@ -256,14 +258,14 @@ public:
                 boostMeter = 0;
                 LOG("Boost end\n");
             } else {
-                targetThrust = f32(250.0f);
+                targetThrust = stats->boostThrust;
             }
         } else {
             if (isPressed(Button::Left)) {
                 boostMeter += 2;
-                if (boostMeter >= boostMax) {
+                if (boostMeter >= stats->boostMax) {
                     isBoosting = true;
-                    boostMeter = boostMax;
+                    boostMeter = stats->boostMax;
                     LOG("Boost start\n");
                 }
             } else if (boostMeter > 0) {
@@ -271,9 +273,9 @@ public:
             }
         }
 
-        BoostLayer::level = boostMeter * 128 / boostMax;
+        BoostLayer::level = boostMeter * 128 / stats->boostMax;
 
-        rotationSpeed = tweenTo(rotationSpeed, (isPressed(Button::Up) - isPressed(Button::Down)) * 32, 4 + isBoosting);
+        rotationSpeed = tweenTo(rotationSpeed, (isPressed(Button::Up) - isPressed(Button::Down)) * stats->turnRate * (isBoosting ? f32(1.0f) : f32(1.3f)), f32(0.25f));
 
         if (Settings::autoAccelerate) {
             if (isPressed(Button::Right)) {
@@ -304,47 +306,45 @@ public:
 
         if (delta > 15) {
             auto groundNormal = terrain.getNormalAtPoint({position.x, position.z}).normalize();
-            f32 w = f32(40.0f) - std::abs(groundNormal.y) * f32(40.0f);
+            f32 w = f32(100.0f) - std::abs(groundNormal.y) * f32(100.0f);
             speed += groundNormal * w;
         }
 
         if (!(frame&3)) {
             Point3D forward{thrust, 0, 0};
             forward.rotateXZ(rotation);
-            speed.x = tweenTo(speed.x, forward.x, 2);
-            speed.z = tweenTo(speed.z, forward.z, 2);
+            speed += forward;
             thrust *= f32(0.9f);
         }
-        speed.y *= f32(0.8f);
+        speed *= f32(0.8f);
         position += speed * f32(0.01f);
         rotation += rotationSpeed * f32(0.004f);
         if (std::abs(f32ToS24q8(rotationSpeed)) < 50) rotationSpeed = 0;
 
         auto rpos = -position.xz();
 
-        auto checkpointDelta = (checkPoints[nextCheckpoint] - Point2D{
-                s32(rpos.x) & Ground::widthMask,
-                s32(rpos.y) & Ground::heightMask
-            });
+        auto checkpointDelta = Ground::relative(checkPoints[nextCheckpoint], rpos) - rpos;
 
-        if (!checkpointDelta.distanceCheck(128)) {
-            checkpointDelta = (checkPoints[nextCheckpoint] - Point2D{
-                    ((s32(rpos.x) & Ground::widthMask) - Ground::mapWidth),
-                    ((s32(rpos.y) & Ground::heightMask) - Ground::mapHeight)
-                });
-        }
+        // if (!checkpointDelta.distanceCheck(128)) {
+        //     checkpointDelta = (checkPoints[nextCheckpoint] - Point2D{
+        //             ((s32(rpos.x) & Ground::widthMask) - Ground::mapWidth),
+        //             ((s32(rpos.y) & Ground::heightMask) - Ground::mapHeight)
+        //         });
+        // }
 
         if (checkpointDelta.distanceCheck(15)) {
             if (nextCheckpoint == 0) {
+                u32 now = getTimeMicro() / 1000;
                 if (lapStart) {
+                    recording->time = now - lapStart;
                     auto other = reinterpret_cast<Recording*>(recordingBanks[1]);
-                    if (!other->sampleCount || recording->sampleCount < other->sampleCount) {
+                    if (!other->sampleCount || recording->time < other->time) {
                         MemOps::copy(recordingBanks[1], recording, maxBankSize);
                         recording->sampleCount = 0;
                         save(recording->trackId);
                     }
                 }
-                lapStart = getTimeMicro() / 1000;
+                lapStart = now;
                 startFrame = frame << 3;
                 lapTime = 0;
             }
@@ -360,6 +360,8 @@ public:
 
     void update(u32 frame){
         PROFILER;
+        stats = &shipStats[recording->pod];
+
         if (isPlayer()) localPlayer();
         else aiPlayer();
 
@@ -444,7 +446,7 @@ public:
             screenHeight/2 + relativePosition.x
         } - (tooBig ? r : r/2);
 
-        if (auto bitmap = drawMesh(shipMeshes[recording->pod],
+        if (auto bitmap = drawMesh(stats->mesh,
                                    scale,
                                    camera3D.rotation - rotation,
                                    rotationSpeed * f32(0.03f),

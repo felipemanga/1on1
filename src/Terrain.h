@@ -84,13 +84,13 @@ public:
 
     Point3D getNormalAtPoint(const Point2D point) {
         s32 Ax = (f32ToS24q8(-point.x) + (1<<7)) >> 8;
-        s32 Az = (f32ToS24q8(-point.y) + (1<<7)) >> 8;
+        s32 Az = ((f32ToS24q8(-point.y) + (1<<7)) >> 8) + 2;
         s32 Ay =  heightmap[(Ax & widthMask) + (Az & heightMask) * mapWidth];
-        s32 Bx = Ax - 2;
-        s32 Bz = Az - 2;
+        s32 Bx = Ax - 3;
+        s32 Bz = Az - 4;
         s32 By =  heightmap[(Bx & widthMask) + (Bz & heightMask) * mapWidth];
-        s32 Cx = Ax + 2;
-        s32 Cz = Az - 2;
+        s32 Cx = Ax + 3;
+        s32 Cz = Az - 4;
         s32 Cy =  heightmap[(Cx & widthMask) + (Cz & heightMask) * mapWidth];
         return {
             (Ay - Cy) * (Bz - Cz) - (Az - Cz) * (By - Cy),
