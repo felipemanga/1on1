@@ -48,6 +48,9 @@ public:
     f32 rotation;
     f32 rotationSpeed;
     u32 HP;
+    s32 boostMeter;
+    u32 boostMax;
+    bool isBoosting;
     u32 nextCheckpoint;
     static inline u32 lapStart;
     static inline u32 lapTime;
@@ -61,6 +64,7 @@ public:
     static inline Point2D checkPoints[4];
 
     void init(u32 trackId) {
+        boostMax = 30;
         bestLap = ~u32{};
         startFrame = frame;
         lapStart = getTimeMicro() / 1000;
@@ -241,17 +245,45 @@ public:
         u32 deltaLeft = 500;
         u32 deltaUp = 500;
 
-        rotationSpeed = tweenTo(rotationSpeed, (isPressed(Button::Up) - isPressed(Button::Down)) * 32, 4);
+        f32 targetThrust = f32(200.0f);
+
+        if (isBoosting) {
+            boostMeter -= frame & 1;
+            if (boostMeter < 0) boostMeter = 0;
+            if (boostMeter == 0 && isPressed(Button::Left)) {
+            } else if (!boostMeter || isPressed(Button::Right)) {
+                isBoosting = false;
+                boostMeter = 0;
+                LOG("Boost end\n");
+            } else {
+                targetThrust = f32(250.0f);
+            }
+        } else {
+            if (isPressed(Button::Left)) {
+                boostMeter += 2;
+                if (boostMeter >= boostMax) {
+                    isBoosting = true;
+                    boostMeter = boostMax;
+                    LOG("Boost start\n");
+                }
+            } else if (boostMeter > 0) {
+                boostMeter--;
+            }
+        }
+
+        BoostLayer::level = boostMeter * 128 / boostMax;
+
+        rotationSpeed = tweenTo(rotationSpeed, (isPressed(Button::Up) - isPressed(Button::Down)) * 32, 4 + isBoosting);
 
         if (Settings::autoAccelerate) {
             if (isPressed(Button::Right)) {
                 thrust = tweenTo(thrust, f32(-80.0f), 4);
             } else {
-                thrust = tweenTo(thrust, f32(250.0f), 4);
+                thrust = tweenTo(thrust, targetThrust, 4 - isBoosting);
             }
         } else {
             if (isPressed(Button::A)) {
-                thrust = tweenTo(thrust, f32(250.0f), 4);
+                thrust = tweenTo(thrust, targetThrust, 4 - isBoosting);
             } else if (isPressed(Button::B)) {
                 thrust = tweenTo(thrust, f32(-80.0f), 4);
             }
@@ -283,7 +315,7 @@ public:
             speed.z = tweenTo(speed.z, forward.z, 2);
             thrust *= f32(0.9f);
         }
-        speed.y *= f32(0.7f);
+        speed.y *= f32(0.8f);
         position += speed * f32(0.01f);
         rotation += rotationSpeed * f32(0.004f);
         if (std::abs(f32ToS24q8(rotationSpeed)) < 50) rotationSpeed = 0;

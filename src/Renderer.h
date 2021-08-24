@@ -5,17 +5,17 @@
 #include <MonoText.hpp>
 #include "Camera3D.h"
 #include "Terrain.h"
-
+#include "BoostLayer.h"
 
 /* inline Particles shots; */
 using SpriteLayer = Graphics::layer::FastDrawList<10, 5>;
 using HUDLayer = Graphics::layer::DrawList<80, fontDonut>;
 using Ground = Terrain<256, 256, 70>;
-using SpriteLayerParent = SpriteLayer;
 using TextLayer = Graphics::layer::MonoText<fontDonut>;
 using GameRenderer = Graphics::Renderer<
     Ground,
-    SpriteLayerParent,
+    SpriteLayer,
+    BoostLayer,
     TextLayer
     >;
 
